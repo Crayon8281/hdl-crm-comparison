@@ -39,9 +39,23 @@
   tr.done .num-cell { background: #d1fae5; color: #065f46; }
   .summary-box { display: inline-block; background: white; padding: 10px 16px; border-radius: 8px; margin-left: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
   .summary-box strong { color: #1e40af; font-size: 18px; }
+  /* Completion dashboard */
+  .dashboard { background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; padding: 24px; border-radius: 12px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(30,64,175,0.25); }
+  .dashboard h2 { color: white; border: none; margin: 0 0 16px 0; padding: 0; font-size: 18px; }
+  .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .dash-card { background: rgba(255,255,255,0.15); padding: 14px; border-radius: 8px; backdrop-filter: blur(10px); }
+  .dash-card .label { font-size: 12px; opacity: 0.85; margin-bottom: 4px; }
+  .dash-card .value { font-size: 26px; font-weight: 700; }
+  .dash-card .sub { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+  .big-progress { background: rgba(0,0,0,0.2); height: 36px; border-radius: 18px; overflow: hidden; position: relative; }
+  .big-progress-fill { height: 100%; background: linear-gradient(90deg, #10b981, #34d399); transition: width 0.6s; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; }
+  .section-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin-top: 16px; font-size: 12px; }
+  .section-stat { background: rgba(255,255,255,0.1); padding: 8px 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
+  .section-stat .pct { font-weight: 700; }
   @media print {
     .controls, .legend button { display: none; }
     body { padding: 0; background: white; }
+    .dashboard { background: #1e40af !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
 </head>
@@ -49,6 +63,19 @@
 
 <h1>מערכת CRM "הדרך להצלחה" — מסמך השוואה ומעקב</h1>
 <div class="subtitle">השוואה בין PRD v5.0, SPEC.he.md בפרויקט, והקוד בפועל • סטטוס מתעדכן ונשמר בדפדפן</div>
+
+<div class="dashboard">
+  <h2>📊 דשבורד השלמת פרויקט</h2>
+  <div class="dash-grid">
+    <div class="dash-card"><div class="label">סה"כ פיצ'רים</div><div class="value" id="dash-total">—</div></div>
+    <div class="dash-card"><div class="label">קיימים בקוד ✓</div><div class="value" id="dash-yes">—</div><div class="sub" id="dash-yes-pct">—</div></div>
+    <div class="dash-card"><div class="label">חלקיים ◐</div><div class="value" id="dash-partial">—</div><div class="sub" id="dash-partial-pct">—</div></div>
+    <div class="dash-card"><div class="label">חסרים ✗</div><div class="value" id="dash-no">—</div><div class="sub" id="dash-no-pct">—</div></div>
+    <div class="dash-card" style="background:rgba(255,255,255,0.25);"><div class="label">אחוז השלמה משוקלל</div><div class="value" id="dash-pct">—</div><div class="sub">✓=1 • ◐=½ • ✗=0</div></div>
+  </div>
+  <div class="big-progress"><div class="big-progress-fill" id="dash-bar" style="width:0%;">0%</div></div>
+  <div class="section-stats" id="section-stats"></div>
+</div>
 
 <div class="legend">
   <strong>מקרא:</strong>
@@ -335,6 +362,7 @@
       });
     });
     updateProgress();
+    computeDashboard();
 
     document.getElementById('search').addEventListener('input', e => {
       const q = e.target.value.toLowerCase().trim();
@@ -343,6 +371,53 @@
         row.style.display = (!q || txt.includes(q)) ? '' : 'none';
       });
     });
+  }
+
+  function computeDashboard() {
+    const rows = document.querySelectorAll('tr[data-id]');
+    let yes = 0, partial = 0, no = 0, score = 0;
+    const bySection = {};
+    rows.forEach(row => {
+      const codeCell = row.children[5]; // # | ✓ | פיצ'ר | הסבר | PRD | SPEC | קוד | פער
+      if (!codeCell) return;
+      let status = 'no';
+      if (codeCell.classList.contains('yes')) status = 'yes';
+      else if (codeCell.classList.contains('partial')) status = 'partial';
+      if (status === 'yes') { yes++; score += 1; }
+      else if (status === 'partial') { partial++; score += 0.5; }
+      else { no++; }
+      const sec = row.dataset.id.split('.')[0];
+      if (!bySection[sec]) bySection[sec] = { yes:0, partial:0, no:0, total:0, score:0 };
+      bySection[sec].total++;
+      bySection[sec][status]++;
+      bySection[sec].score += (status==='yes'?1:status==='partial'?0.5:0);
+    });
+    const total = rows.length;
+    const pct = total ? Math.round(score/total*100) : 0;
+    document.getElementById('dash-total').textContent = total;
+    document.getElementById('dash-yes').textContent = yes;
+    document.getElementById('dash-partial').textContent = partial;
+    document.getElementById('dash-no').textContent = no;
+    document.getElementById('dash-yes-pct').textContent = total ? Math.round(yes/total*100)+'%' : '';
+    document.getElementById('dash-partial-pct').textContent = total ? Math.round(partial/total*100)+'%' : '';
+    document.getElementById('dash-no-pct').textContent = total ? Math.round(no/total*100)+'%' : '';
+    document.getElementById('dash-pct').textContent = pct + '%';
+    const bar = document.getElementById('dash-bar');
+    bar.style.width = pct + '%';
+    bar.textContent = pct + '% הושלם';
+    // Section breakdown
+    const sectionTitles = {};
+    document.querySelectorAll('h2').forEach(h => {
+      const m = h.textContent.match(/^(\d+)\.\s*(.+?)(?:\s—|$)/);
+      if (m) sectionTitles[m[1]] = m[2].trim();
+    });
+    const stats = Object.keys(bySection).sort((a,b)=>+a-+b).map(sec => {
+      const s = bySection[sec];
+      const p = Math.round(s.score/s.total*100);
+      const title = sectionTitles[sec] || ('סעיף '+sec);
+      return `<div class="section-stat"><span>${sec}. ${title}</span><span class="pct">${p}% (${s.yes}/${s.total})</span></div>`;
+    }).join('');
+    document.getElementById('section-stats').innerHTML = stats;
   }
 
   function updateProgress() {
