@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>השוואה: PRD מול SPEC מול קוד — מערכת CRM הדרך להצלחה</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f7fa; padding: 20px; color: #1f2937; }
+  h1 { color: #1e40af; margin-bottom: 5px; }
+  .subtitle { color: #6b7280; margin-bottom: 20px; }
+  h2 { color: #374151; margin-top: 30px; border-bottom: 2px solid #e5e7eb; padding-bottom: 6px; }
+  table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px; font-size: 13px; }
+  th { background: #1e40af; color: white; padding: 10px 8px; text-align: right; position: sticky; top: 0; z-index: 5; }
+  td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  tr:nth-child(even) { background: #f9fafb; }
+  tr:hover { background: #eff6ff; }
+  tr.done { background: #ecfdf5 !important; }
+  tr.done td.area, tr.done td.desc, tr.done td.gap { text-decoration: line-through; opacity: 0.7; }
+  .yes { background: #d1fae5; color: #065f46; font-weight: 600; text-align: center; white-space: nowrap; }
+  .no { background: #fee2e2; color: #991b1b; font-weight: 600; text-align: center; white-space: nowrap; }
+  .partial { background: #fef3c7; color: #92400e; font-weight: 600; text-align: center; white-space: nowrap; }
+  .gap { font-size: 12px; color: #4b5563; min-width: 180px; }
+  .desc { font-size: 12px; color: #374151; min-width: 240px; line-height: 1.5; }
+  .area { font-weight: 600; color: #111827; min-width: 170px; }
+  .legend { background: white; padding: 14px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .legend span { display: inline-block; padding: 4px 10px; margin-left: 8px; border-radius: 4px; font-weight: 600; font-size: 13px; }
+  .progress-bar { width: 100%; height: 24px; background: #e5e7eb; border-radius: 12px; overflow: hidden; margin: 10px 0; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #10b981, #059669); transition: width 0.4s; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 12px; }
+  .controls { background: white; padding: 14px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .controls button { background: #1e40af; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .controls button:hover { background: #1e3a8a; }
+  .controls button.danger { background: #dc2626; }
+  .controls button.danger:hover { background: #b91c1c; }
+  .controls button.secondary { background: #6b7280; }
+  .controls input[type="text"] { padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; flex: 1; min-width: 200px; }
+  input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; accent-color: #10b981; }
+  .check-cell { text-align: center; width: 40px; }
+  .num-cell { text-align: center; width: 50px; font-weight: 700; color: #1e40af; background: #eff6ff; font-family: monospace; font-size: 13px; }
+  tr.done .num-cell { background: #d1fae5; color: #065f46; }
+  .summary-box { display: inline-block; background: white; padding: 10px 16px; border-radius: 8px; margin-left: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .summary-box strong { color: #1e40af; font-size: 18px; }
+  @media print {
+    .controls, .legend button { display: none; }
+    body { padding: 0; background: white; }
+  }
+</style>
+</head>
+<body>
+
+<h1>מערכת CRM "הדרך להצלחה" — מסמך השוואה ומעקב</h1>
+<div class="subtitle">השוואה בין PRD v5.0, SPEC.he.md בפרויקט, והקוד בפועל • סטטוס מתעדכן ונשמר בדפדפן</div>
+
+<div class="legend">
+  <strong>מקרא:</strong>
+  <span class="yes">✓ קיים</span>
+  <span class="partial">◐ חלקי</span>
+  <span class="no">✗ חסר</span>
+  <span style="color:#6b7280">• סמן ✓ בשורה כדי לסמן שטופל</span>
+</div>
+
+<div class="controls">
+  <input type="text" id="search" placeholder="🔍 חיפוש לפי שם פיצ'ר או תיאור...">
+  <button onclick="filterRows('all')">הצג הכל</button>
+  <button onclick="filterRows('pending')">רק לא-טופל</button>
+  <button onclick="filterRows('done')">רק טופל</button>
+  <button class="secondary" onclick="window.print()">🖨️ הדפסה / PDF</button>
+  <button class="danger" onclick="resetAll()">איפוס סימונים</button>
+  <span class="summary-box">הושלמו: <strong id="done-count">0</strong> / <strong id="total-count">0</strong></span>
+</div>
+
+<div class="progress-bar">
+  <div class="progress-fill" id="progress-fill" style="width: 0%;">0%</div>
+</div>
+
+<h2>1. ליבה תפעולית — לקוחות, תורים, סניפים, מאבחנים</h2>
+<table>
+  <thead><tr>
+    <th class="check-cell">✓</th>
+    <th>פיצ'ר</th>
+    <th>הסבר</th>
+    <th>PRD</th>
+    <th>SPEC</th>
+    <th>קוד</th>
+    <th>פער / מה לפתח</th>
+  </tr></thead>
+  <tbody>
+    <tr data-id="1.1"><td class="check-cell"><input type="checkbox"></td><td class="area">כרטיס לקוח (Patient)</td><td class="desc">פרופיל מטופל מלא — שם, ת"ז, תאריך לידה, קופה, טלפון, מייל, כתובת. בסיס לכל פעולה במערכת.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">מלא — Patient + Parent + Case</td></tr>
+    <tr data-id="1.2"><td class="check-cell"><input type="checkbox"></td><td class="area">FSM סטטוסי תיק</td><td class="desc">מכונת מצבים לתיק: ליד → המשך טיפול → ממתין לנתונים → תואם תור → בוצע אבחון → ממתין לדוח → נסגר. כל מעבר נשמר ביומן.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">CaseStatus enum + cron עדכון אוטומטי</td></tr>
+    <tr data-id="1.3"><td class="check-cell"><input type="checkbox"></td><td class="area">ולידציה ת"ז ישראלי</td><td class="desc">בדיקת תקינות ת"ז (אלגוריתם ספרת ביקורת) למניעת שגיאות הקלדה ועסקאות כפולות.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">lib/israeli-id.ts</td></tr>
+    <tr data-id="1.4"><td class="check-cell"><input type="checkbox"></td><td class="area">חישוב גיל אוטומטי</td><td class="desc">גיל המטופל מחושב מתאריך הלידה — חשוב לקביעת סוג אבחון מתאים ולתעריפי קופות.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">lib/age.ts</td></tr>
+    <tr data-id="1.5"><td class="check-cell"><input type="checkbox"></td><td class="area">ניהול תורים (Appointments)</td><td class="desc">קביעת/ביטול/דחיית תורים עם שיוך מאבחן, חדר, סניף ושירות. בסיס תפעולי מרכזי.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">Appointment + ActiveSlot</td></tr>
+    <tr data-id="1.6"><td class="check-cell"><input type="checkbox"></td><td class="area">מנוע ניקוד שיבוצים</td><td class="desc">אלגוריתם שמדרג זמינויות לפי "צמידות" לתורים אחרים — ממקסם ניצול חדר ומאבחן.</td><td class="no">✗</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">לא ב-PRD שלך — אבל קיים בקוד</td></tr>
+    <tr data-id="1.7"><td class="check-cell"><input type="checkbox"></td><td class="area">שריון חדר</td><td class="desc">חסימת חדר לטובת תור עתידי (גם ללא תשלום מלא) — מונע התנגשויות בין מאבחנים.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">RoomReservation + BookingSecurityType</td></tr>
+    <tr data-id="1.8"><td class="check-cell"><input type="checkbox"></td><td class="area">17 סניפים</td><td class="desc">ניהול 17 סניפים פיזיים — כתובת, הוראות הגעה, לינק Waze, חדרים זמינים.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">Branch model + /admin/branches</td></tr>
+    <tr data-id="1.9"><td class="check-cell"><input type="checkbox"></td><td class="area">חדרים בסניף</td><td class="desc">ניהול חדרים פר סניף — שם, ציוד, סוגי אבחון אפשריים. כיום קיים רק כ-RoomReservation.</td><td class="yes">✓</td><td class="yes">✓</td><td class="partial">◐</td><td class="gap">חסר model "Room" עצמאי עם ציוד/מגבלות</td></tr>
+    <tr data-id="1.10"><td class="check-cell"><input type="checkbox"></td><td class="area">חיפוש סניפים לפי כתובת</td><td class="desc">משתמש מזין כתובת — המערכת מציגה סניפים קרובים מסודרים לפי מרחק (Google Geocoding).</td><td class="no">✗</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">Geocoding + nearby API</td></tr>
+    <tr data-id="1.11"><td class="check-cell"><input type="checkbox"></td><td class="area">מאבחנים + זמינות</td><td class="desc">פרופיל מאבחן (התמחות, הסמכות) + לוח זמנים שבועי של חלונות זמינות פר סניף.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">Specialist + SpecialistAvailability</td></tr>
+    <tr data-id="1.12"><td class="check-cell"><input type="checkbox"></td><td class="area">תעריף אישי למאבחן לפי שירות</td><td class="desc">כל מאבחן מקבל תעריף שונה פר סוג אבחון (דידקטי/פסיכודידקטי וכו'). חשוב לחישוב שכר ועלות.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">SpecialistDiagnostic.rate</td></tr>
+    <tr data-id="1.13"><td class="check-cell"><input type="checkbox"></td><td class="area">תעריף שכירות שעת חדר</td><td class="desc">כל סניף/חדר עם תעריף שכירות שעתי. נדרש לחישוב עלות תיק ורווחיות אמיתית.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר לחלוטין</strong> — אין שדה rate על Branch/Room</td></tr>
+  </tbody>
+</table>
+
+<h2>2. אינטגרציות חיצוניות</h2>
+<table>
+  <thead><tr>
+    <th class="check-cell">✓</th><th>פיצ'ר</th><th>הסבר</th><th>PRD</th><th>SPEC</th><th>קוד</th><th>פער</th>
+  </tr></thead>
+  <tbody>
+    <tr data-id="2.1"><td class="check-cell"><input type="checkbox"></td><td class="area">Google Calendar דו-כיווני</td><td class="desc">סנכרון תורים אוטומטי ליומני המאבחנים והחדרים. שינוי במערכת = עדכון מיידי ביומן וההפך.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">lib/google-calendar.ts</td></tr>
+    <tr data-id="2.2"><td class="check-cell"><input type="checkbox"></td><td class="area">PBX — לוג שיחות</td><td class="desc">שמירת היסטוריית שיחות נכנסות/יוצאות, משך, שיוך לנציג ולתיק. בסיס לדוחות תפוקה.</td><td class="yes">✓</td><td class="partial">◐</td><td class="partial">◐</td><td class="gap">יש CallLog + pbx015-presence; חסר שילוב מלא</td></tr>
+    <tr data-id="2.3"><td class="check-cell"><input type="checkbox"></td><td class="area">PBX — הקפצת כרטיס בזמן שיחה</td><td class="desc">כשלקוח מתקשר — הכרטיס שלו נפתח אוטומטית במסך הנציג. חוסך 30-60 שניות פר שיחה.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר webhook להקפצה</strong></td></tr>
+    <tr data-id="2.4"><td class="check-cell"><input type="checkbox"></td><td class="area">PBX — פתיחת ליד אוטומטית</td><td class="desc">אם מתקשר מספר לא מזוהה — נפתח ליד חדש אוטומטית עם מספר השיחה. מבטיח שכל שיחה תטופל.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר</strong></td></tr>
+    <tr data-id="2.5"><td class="check-cell"><input type="checkbox"></td><td class="area">סליקה Pelecard</td><td class="desc">חיוב כרטיס אשראי, תשלומים, ביטול עסקה, שמירת טוקן. חיבור ישיר ל-API ללא iframe.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">מלא (סשן 26) — charge/refund/token</td></tr>
+    <tr data-id="2.6"><td class="check-cell"><input type="checkbox"></td><td class="area">חשבוניות (EZcount)</td><td class="desc">הפקה אוטומטית של חשבונית/קבלה לאחר תשלום מוצלח. ה-PRD ציין "Morning" — בפועל EZcount.</td><td class="yes">✓ (Morning)</td><td class="yes">✓ (EZcount)</td><td class="yes">✓ (EZcount)</td><td class="gap"><strong>פער שמות</strong> — לעדכן ב-PRD</td></tr>
+    <tr data-id="2.7"><td class="check-cell"><input type="checkbox"></td><td class="area">גמא — דוחות התאמות</td><td class="desc">קליטת קבצי דיווח מסולק האשראי גמא + פיוס אוטומטי מול חשבוניות במערכת. למניעת תשלומים אבודים.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר</strong> — אין מודול</td></tr>
+    <tr data-id="2.8"><td class="check-cell"><input type="checkbox"></td><td class="area">WhatsApp API (Green API)</td><td class="desc">שליחה+קבלה של הודעות WhatsApp מתוך המערכת. לתזכורות, טפסים, ושירות לקוחות.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">דו-כיווני + webhook</td></tr>
+    <tr data-id="2.9"><td class="check-cell"><input type="checkbox"></td><td class="area">OCR מסמכים (Gemini)</td><td class="desc">סריקה אוטומטית של מסמכי התחייבות מקופות חולים — שולפת שם קופה, תוקף, מספר אישור.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">התחייבויות בלבד; ניתן להרחיב</td></tr>
+  </tbody>
+</table>
+
+<h2>3. טפסים, מסמכים ותקשורת עם הלקוח</h2>
+<table>
+  <thead><tr>
+    <th class="check-cell">✓</th><th>פיצ'ר</th><th>הסבר</th><th>PRD</th><th>SPEC</th><th>קוד</th><th>פער</th>
+  </tr></thead>
+  <tbody>
+    <tr data-id="3.1"><td class="check-cell"><input type="checkbox"></td><td class="area">שאלון הורה דיגיטלי</td><td class="desc">לינק WhatsApp להורה למילוי שאלון התפתחותי לפני אבחון. תשובות נכנסות אוטומטית לתיק.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">ParentQuestionnaire + OTP</td></tr>
+    <tr data-id="3.2"><td class="check-cell"><input type="checkbox"></td><td class="area">שאלון מורה</td><td class="desc">שאלון פדגוגי שהמורה ממלא דיגיטלית — חלק מהאבחון. הלינק מתכלה אחרי מילוי.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">TeacherQuestionnaire</td></tr>
+    <tr data-id="3.3"><td class="check-cell"><input type="checkbox"></td><td class="area">ויתור סודיות דיגיטלי</td><td class="desc">חתימה דיגיטלית של ההורה על ויתור סודיות (במקום נייר). תקף 7 ימים מיום השליחה.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">ConsentForm + /consent/[token]</td></tr>
+    <tr data-id="3.4"><td class="check-cell"><input type="checkbox"></td><td class="area">העלאת התחייבות + OCR</td><td class="desc">הורה מצלם/מעלה התחייבות מהקופה — ה-OCR שולף את הפרטים והם נכנסים לתיק לאישור.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">Authorization + scan</td></tr>
+    <tr data-id="3.5"><td class="check-cell"><input type="checkbox"></td><td class="area">הפניה רפואית</td><td class="desc">העלאת הפניה מרופא מטעם המשפחה — נשמרת לתיק וזמינה למאבחן.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">MedicalReferral</td></tr>
+    <tr data-id="3.6"><td class="check-cell"><input type="checkbox"></td><td class="area">העלאת דוח אבחון ע"י מאבחן</td><td class="desc">לאחר אבחון, המאבחן מעלה את הדוח דרך לינק מאובטח. הדוח נשמר ועובר לבדיקת צוות.</td><td class="yes">✓</td><td class="partial">◐</td><td class="partial">◐</td><td class="gap">CaseDocument קיים; <strong>חסר flow ייעודי</strong></td></tr>
+    <tr data-id="3.7"><td class="check-cell"><input type="checkbox"></td><td class="area">דוח סופי ללקוח — לינק מתכלה 48h</td><td class="desc">בסיום, נשלח להורה לינק מאובטח לדוח האבחון שתקף ל-48 שעות בלבד. לאחר מכן מתבטל.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר</strong> — אין מנגנון expiring links</td></tr>
+    <tr data-id="3.8"><td class="check-cell"><input type="checkbox"></td><td class="area">תבניות הודעות WhatsApp</td><td class="desc">תבניות מוכנות (תזכורת תור, בקשת מסמכים, אישור תשלום) שאפשר לשלוח בלחיצה. ניתן לערוך ב-UI.</td><td class="yes">✓</td><td class="partial">◐</td><td class="partial">◐</td><td class="gap">קיים בסיס; חסר ניהול תבניות UI</td></tr>
+    <tr data-id="3.9"><td class="check-cell"><input type="checkbox"></td><td class="area">צ'אט פנימי בתיק (לא חשוף ללקוח)</td><td class="desc">דיון פנימי של הצוות על תיק לקוח — תגיות, הערות, משימות. הלקוח לא רואה.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">TaskComment + timeline</td></tr>
+  </tbody>
+</table>
+
+<h2>4. תהליכים מיוחדים (FSM)</h2>
+<table>
+  <thead><tr>
+    <th class="check-cell">✓</th><th>פיצ'ר</th><th>הסבר</th><th>PRD</th><th>SPEC</th><th>קוד</th><th>פער</th>
+  </tr></thead>
+  <tbody>
+    <tr data-id="4.1"><td class="check-cell"><input type="checkbox"></td><td class="area">אישור מקצועי (Professional Authority)</td><td class="desc">לפני סגירת תיק — דורש אישור של סמכות מקצועית מורשית. שלב נוסף ב-FSM למניעת טעויות.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">PROFESSIONALLY_APPROVED + UI</td></tr>
+    <tr data-id="4.2"><td class="check-cell"><input type="checkbox"></td><td class="area">אבחון מפוצל — משימה אוטומטית</td><td class="desc">כשהוזן רק חלק (דידקטי או פסיכולוגי) — נפתחת משימה לסמכות מקצועית להשלים את החסר.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר</strong> — אין טריגר ייעודי</td></tr>
+    <tr data-id="4.3"><td class="check-cell"><input type="checkbox"></td><td class="area">MOXO — "נסגר בקופה" + פיענוח</td><td class="desc">בדיקת MOXO היא תהליך מיוחד: כל ההכנסה מהקופה (לא הורה), משימה אוטומטית לרועי לפיענוח.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר</strong> — אין דגל ולא משימה</td></tr>
+    <tr data-id="4.4"><td class="check-cell"><input type="checkbox"></td><td class="area">הורים גרושים — חסימת מעבר שלב</td><td class="desc">כשההורים גרושים — לא ניתן להתקדם ללא חתימת שני ההורים על ויתור סודיות.</td><td class="yes">✓</td><td class="partial">◐</td><td class="partial">◐</td><td class="gap">יש שדות; <strong>אכיפה ב-FSM לא ברורה</strong></td></tr>
+    <tr data-id="4.5"><td class="check-cell"><input type="checkbox"></td><td class="area">בדיקת תוקף התחייבות מול תאריך אבחון</td><td class="desc">לפני זימון תור — בדיקה אוטומטית שההתחייבות מהקופה עוד תקפה ביום האבחון.</td><td class="yes">✓</td><td class="partial">◐</td><td class="partial">◐</td><td class="gap">חסרה בדיקה אקטיבית בזמן זימון</td></tr>
+    <tr data-id="4.6"><td class="check-cell"><input type="checkbox"></td><td class="area">"מוכן לאבחון" אוטומטי כשהטפסים שלמים</td><td class="desc">המערכת בודקת אוטומטית שכל הטפסים והמסמכים הנדרשים הושלמו, ומשנה סטטוס.</td><td class="yes">✓</td><td class="partial">◐</td><td class="partial">◐</td><td class="gap">לבדוק אם יש טריגר אוטומטי</td></tr>
+  </tbody>
+</table>
+
+<h2>5. פיננסים ורווחיות</h2>
+<table>
+  <thead><tr>
+    <th class="check-cell">✓</th><th>פיצ'ר</th><th>הסבר</th><th>PRD</th><th>SPEC</th><th>קוד</th><th>פער</th>
+  </tr></thead>
+  <tbody>
+    <tr data-id="5.1"><td class="check-cell"><input type="checkbox"></td><td class="area">פיצול הכנסה הורה+קופה</td><td class="desc">כל תיק = שני זרמי הכנסה: השתתפות הורה (סליקה מיידית) + השלמה מקופת חולים (חיוב חודשי).</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">Invoice + InsuranceMonthlyInvoice</td></tr>
+    <tr data-id="5.2"><td class="check-cell"><input type="checkbox"></td><td class="area">חיוב כרטיס אשראי + תשלומים</td><td class="desc">חיוב חד-פעמי או מספר תשלומים בכרטיס אשראי דרך Pelecard. כולל ביטול עסקה.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">Pelecard charge/refund</td></tr>
+    <tr data-id="5.3"><td class="check-cell"><input type="checkbox"></td><td class="area">חיוב חודשי לקופה</td><td class="desc">צבירת כל התיקים שטופלו חודשי, יצירת חשבונית מרוכזת לכל קופה, ייצוא Excel לדיווח.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">/admin/billing/[shortCode]</td></tr>
+    <tr data-id="5.4"><td class="check-cell"><input type="checkbox"></td><td class="area">חישוב רווח נקי לתיק</td><td class="desc">הכנסה (הורה+קופה) − שכר מאבחן − שכירות חדר = רווח נקי. בכרטיס התיק ובדוחות.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר</strong> — אין שדות עלות חדר ולא חישוב</td></tr>
+    <tr data-id="5.5"><td class="check-cell"><input type="checkbox"></td><td class="area">פיוס תשלומים מול גמא</td><td class="desc">השוואה אוטומטית בין דוחות גמא לחשבוניות שהונפקו, סימון תשלומים פתוחים/חסרים.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר</strong></td></tr>
+    <tr data-id="5.6"><td class="check-cell"><input type="checkbox"></td><td class="area">ביטול חשבונית לפני תשלום</td><td class="desc">אפשרות לבטל חשבונית שטרם נסלקה. נדרש על-פי דין כשטועים בפרטים.</td><td class="no">✗</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">קיים בקוד</td></tr>
+  </tbody>
+</table>
+
+<h2>6. דוחות BI</h2>
+<table>
+  <thead><tr>
+    <th class="check-cell">✓</th><th>פיצ'ר</th><th>הסבר</th><th>PRD</th><th>SPEC</th><th>קוד</th><th>פער</th>
+  </tr></thead>
+  <tbody>
+    <tr data-id="6.1"><td class="check-cell"><input type="checkbox"></td><td class="area">דשבורד ניהולי כללי</td><td class="desc">מסך פתיחה למנהלים: מספר תיקים פעילים, הכנסות חודש, התראות חריגות, KPI עיקריים.</td><td class="yes">✓</td><td class="partial">◐</td><td class="partial">◐</td><td class="gap">/admin/dashboard בסיסי — לא BI מלא</td></tr>
+    <tr data-id="6.2"><td class="check-cell"><input type="checkbox"></td><td class="area">דוח שכר מאבחנים</td><td class="desc">סיכום חודשי לכל מאבחן: כמה אבחונים ביצע, באיזה תעריף, סה"כ לתשלום.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">SpecialistMonthlyStatement</td></tr>
+    <tr data-id="6.3"><td class="check-cell"><input type="checkbox"></td><td class="area">דוח חובות קופות מצטבר</td><td class="desc">כמה כל קופה חייבת לכם בכל רגע — לפי תיק, חודש, סטטוס. למעקב גבייה.</td><td class="yes">✓</td><td class="partial">◐</td><td class="partial">◐</td><td class="gap">חסר דוח aggregate על כל הקופות</td></tr>
+    <tr data-id="6.4"><td class="check-cell"><input type="checkbox"></td><td class="area">דוח תפוקת נציגים/מרכזיה</td><td class="desc">כמה שיחות כל נציג ענה, נטש, זמן מענה ממוצע, כמה מכירות סגר. למדידת ביצועים.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר</strong></td></tr>
+    <tr data-id="6.5"><td class="check-cell"><input type="checkbox"></td><td class="area">דוח רווחיות לפי סניף/מאבחן/שירות</td><td class="desc">פילוח רווח נקי לפי כל ממד — לזיהוי איזה סניף/מאבחן/שירות הכי רווחי.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר</strong> — תלוי ב-5.4</td></tr>
+    <tr data-id="6.6"><td class="check-cell"><input type="checkbox"></td><td class="area">דוח ביטולים/נטישות</td><td class="desc">שיעור ביטולי תורים, סיבות, מגמות. לזיהוי בעיות שירות ומאבחנים בעייתיים.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר</strong></td></tr>
+    <tr data-id="6.7"><td class="check-cell"><input type="checkbox"></td><td class="area">תחזית מלאי שעות חדרים</td><td class="desc">איזה סניפים מנוצלים מלא? איפה צריך עוד מאבחן? תחזית עומסים לקדימה.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר</strong> — מסומן עתידי גם ב-PRD</td></tr>
+    <tr data-id="6.8"><td class="check-cell"><input type="checkbox"></td><td class="area">יצוא Excel/CSV</td><td class="desc">כל דוח ניתן להורדה כ-Excel לעיבוד נוסף בחשבונאות.</td><td class="yes">✓</td><td class="partial">◐</td><td class="partial">◐</td><td class="gap">קיים לחיוב קופות; חסר על דוחות אחרים</td></tr>
+  </tbody>
+</table>
+
+<h2>7. ניהול עובדים (HR)</h2>
+<table>
+  <thead><tr>
+    <th class="check-cell">✓</th><th>פיצ'ר</th><th>הסבר</th><th>PRD</th><th>SPEC</th><th>קוד</th><th>פער</th>
+  </tr></thead>
+  <tbody>
+    <tr data-id="7.1"><td class="check-cell"><input type="checkbox"></td><td class="area">שעון נוכחות</td><td class="desc">עובדים מחתימים כניסה/יציאה דרך הטלפון (OTP). המערכת מחשבת שעות אוטומטית.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">/staff/clock + OTP</td></tr>
+    <tr data-id="7.2"><td class="check-cell"><input type="checkbox"></td><td class="area">דוחות שעות חודשיים</td><td class="desc">גיליון נוכחות חודשי לכל עובד — סך שעות, הפסקות, ימי חופש. עובד שולח לאישור.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">MonthlyTimesheet</td></tr>
+    <tr data-id="7.3"><td class="check-cell"><input type="checkbox"></td><td class="area">עריכת TimeEntry ע"י מנהל</td><td class="desc">מנהל יכול לתקן רישום שגוי של עובד עם רישום סיבה. לשמירת יושרה.</td><td class="no">✗</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">editedById/At/Reason</td></tr>
+    <tr data-id="7.4"><td class="check-cell"><input type="checkbox"></td><td class="area">תיק עובד — קבצי 101/ת"ז/הסכם</td><td class="desc">מאגר מסמכים לכל עובד — טופס 101, צילום ת"ז, הסכם עבודה. נדרש למסים ולתביעות.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר</strong> — אין EmployeeDocument model</td></tr>
+    <tr data-id="7.5"><td class="check-cell"><input type="checkbox"></td><td class="area">העלאת תלושי שכר</td><td class="desc">אזור פרטי שבו עובד יכול לראות תלושי שכר עבר. גישה לצפייה בלבד.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר</strong></td></tr>
+    <tr data-id="7.6"><td class="check-cell"><input type="checkbox"></td><td class="area">נעילת תיק עובד</td><td class="desc">כשעובד עוזב — מנהל נועל את התיק, השגת המידע משמרת אך לא ניתן לשנות.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר</strong></td></tr>
+  </tbody>
+</table>
+
+<h2>8. הרשאות ותפקידים (RBAC)</h2>
+<table>
+  <thead><tr>
+    <th class="check-cell">✓</th><th>פיצ'ר</th><th>הסבר</th><th>PRD</th><th>SPEC</th><th>קוד</th><th>פער</th>
+  </tr></thead>
+  <tbody>
+    <tr data-id="8.1"><td class="check-cell"><input type="checkbox"></td><td class="area">SUPER_ADMIN / ADMIN</td><td class="desc">תפקיד עליון — גישה מלאה לכל המערכת, כולל הגדרות ומחירונים.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">קיים</td></tr>
+    <tr data-id="8.2"><td class="check-cell"><input type="checkbox"></td><td class="area">צוות משרד / שירות</td><td class="desc">נציגי שירות לקוחות — לידים, תורים, תקשורת. אין גישה לכספים או הגדרות.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">STAFF role</td></tr>
+    <tr data-id="8.3"><td class="check-cell"><input type="checkbox"></td><td class="area">מאבחנים — גישה לתיקיהם בלבד</td><td class="desc">מאבחן רואה רק תיקים ששייכים אליו. אין גישה למידע על מטופלים אחרים.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">SPECIALIST role</td></tr>
+    <tr data-id="8.4"><td class="check-cell"><input type="checkbox"></td><td class="area">הנהלת חשבונות (ACCOUNTING)</td><td class="desc">גישה לחשבוניות, תשלומים, נוכחות בלבד. לא רואים תוכן רפואי או תיקי לקוחות.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">view_billing permission</td></tr>
+    <tr data-id="8.5"><td class="check-cell"><input type="checkbox"></td><td class="area">בעלי קליניקות — אישור שריון</td><td class="desc">בעלים שמשכירים לכם חדרים — מקבלים בקשות שריון לאישור/דחייה. רואים רק הזמנות חדרים, לא תיקים.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>חסר</strong> — אין role/UI ייעודי</td></tr>
+  </tbody>
+</table>
+
+<h2>9. אבטחה ותשתית (NFR)</h2>
+<table>
+  <thead><tr>
+    <th class="check-cell">✓</th><th>פיצ'ר</th><th>הסבר</th><th>PRD</th><th>SPEC</th><th>קוד</th><th>פער</th>
+  </tr></thead>
+  <tbody>
+    <tr data-id="9.1"><td class="check-cell"><input type="checkbox"></td><td class="area">Audit Log מלא</td><td class="desc">כל פעולה במערכת (יצירה/עריכה/מחיקה) נרשמת — מי, מתי, מה השתנה. לחקירות ובקרה.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">AuditLog + 19 routes</td></tr>
+    <tr data-id="9.2"><td class="check-cell"><input type="checkbox"></td><td class="area">OTP / 2FA</td><td class="desc">אימות דו-שלבי — קוד נשלח ב-SMS לפני כניסה למערכת או חתימה דיגיטלית.</td><td class="no">✗</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">OtpAuditLog + rate-limit</td></tr>
+    <tr data-id="9.3"><td class="check-cell"><input type="checkbox"></td><td class="area">הצפנה במעבר (TLS)</td><td class="desc">כל התקשורת מוצפנת ב-HTTPS. ברירת מחדל ב-Vercel.</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">Vercel default</td></tr>
+    <tr data-id="9.4"><td class="check-cell"><input type="checkbox"></td><td class="area">Vercel Blob — אחסון מסמכים</td><td class="desc">מסמכים רפואיים נשמרים מוצפנים ב-Vercel Blob עם הרשאות גישה.</td><td class="no">✗</td><td class="yes">✓</td><td class="yes">✓</td><td class="gap">קיים</td></tr>
+    <tr data-id="9.5"><td class="check-cell"><input type="checkbox"></td><td class="area">HIPAA compliance רשמית</td><td class="desc">תקן אמריקני לפרטיות מידע רפואי. דורש BAA חתום עם ספק הענן + אישורים.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>לא נבדק רשמית</strong> — דורש BAA + GCP</td></tr>
+    <tr data-id="9.6"><td class="check-cell"><input type="checkbox"></td><td class="area">Retention policy למסמכים</td><td class="desc">מדיניות מחיקה אוטומטית של מסמכים אחרי X שנים בהתאם לחוק.</td><td class="yes">✓</td><td class="partial">◐</td><td class="partial">◐</td><td class="gap">יש blob-cleanup; חסרה מדיניות פורמלית</td></tr>
+    <tr data-id="9.7"><td class="check-cell"><input type="checkbox"></td><td class="area">99.9% Uptime + monitoring</td><td class="desc">ניטור פעיל של זמני תגובה, התראות על תקלות, גיבויים אוטומטיים.</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="gap"><strong>אין ניטור ייעודי</strong></td></tr>
+  </tbody>
+</table>
+
+<script>
+  const STORAGE_KEY = 'crm-comparison-checklist-v1';
+
+  function loadState() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+    catch(e) { return {}; }
+  }
+
+  function saveState(state) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function init() {
+    // Inject number column header to all tables
+    document.querySelectorAll('table thead tr').forEach(thr => {
+      const th = document.createElement('th');
+      th.textContent = '#';
+      th.className = 'num-cell';
+      thr.insertBefore(th, thr.firstChild);
+    });
+    // Inject number cell at start of every data row
+    document.querySelectorAll('tr[data-id]').forEach(row => {
+      const td = document.createElement('td');
+      td.className = 'num-cell';
+      td.textContent = row.dataset.id;
+      row.insertBefore(td, row.firstChild);
+    });
+
+    const state = loadState();
+    const rows = document.querySelectorAll('tr[data-id]');
+    rows.forEach(row => {
+      const id = row.dataset.id;
+      const cb = row.querySelector('input[type="checkbox"]');
+      if (state[id]) {
+        cb.checked = true;
+        row.classList.add('done');
+      }
+      cb.addEventListener('change', () => {
+        const s = loadState();
+        if (cb.checked) {
+          s[id] = true;
+          row.classList.add('done');
+        } else {
+          delete s[id];
+          row.classList.remove('done');
+        }
+        saveState(s);
+        updateProgress();
+      });
+    });
+    updateProgress();
+
+    document.getElementById('search').addEventListener('input', e => {
+      const q = e.target.value.toLowerCase().trim();
+      document.querySelectorAll('tr[data-id]').forEach(row => {
+        const txt = row.textContent.toLowerCase();
+        row.style.display = (!q || txt.includes(q)) ? '' : 'none';
+      });
+    });
+  }
+
+  function updateProgress() {
+    const rows = document.querySelectorAll('tr[data-id]');
+    const done = document.querySelectorAll('tr[data-id].done').length;
+    const total = rows.length;
+    const pct = total ? Math.round(done/total*100) : 0;
+    document.getElementById('done-count').textContent = done;
+    document.getElementById('total-count').textContent = total;
+    const fill = document.getElementById('progress-fill');
+    fill.style.width = pct + '%';
+    fill.textContent = pct + '%';
+  }
+
+  function filterRows(mode) {
+    document.querySelectorAll('tr[data-id]').forEach(row => {
+      if (mode === 'all') row.style.display = '';
+      else if (mode === 'done') row.style.display = row.classList.contains('done') ? '' : 'none';
+      else if (mode === 'pending') row.style.display = row.classList.contains('done') ? 'none' : '';
+    });
+  }
+
+  function resetAll() {
+    if (!confirm('לאפס את כל הסימונים?')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    document.querySelectorAll('tr[data-id]').forEach(row => {
+      row.classList.remove('done');
+      row.querySelector('input[type="checkbox"]').checked = false;
+    });
+    updateProgress();
+  }
+
+  init();
+</script>
+
+</body>
+</html>
