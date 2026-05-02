@@ -404,7 +404,7 @@
     let yes = 0, partial = 0, no = 0, score = 0;
     const bySection = {};
     rows.forEach(row => {
-      const codeCell = row.children[5]; // # | ✓ | פיצ'ר | הסבר | PRD | SPEC | קוד | פער
+      const codeCell = row.children[6]; // # | ✓ | פיצ'ר | הסבר | PRD | SPEC | קוד | פער
       if (!codeCell) return;
       let status = 'no';
       if (codeCell.classList.contains('yes')) status = 'yes';
