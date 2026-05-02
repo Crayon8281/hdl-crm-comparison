@@ -49,6 +49,18 @@
   .dash-card .sub { font-size: 11px; opacity: 0.8; margin-top: 2px; }
   .big-progress { background: rgba(0,0,0,0.2); height: 36px; border-radius: 18px; overflow: hidden; position: relative; }
   .big-progress-fill { height: 100%; background: linear-gradient(90deg, #10b981, #34d399); transition: width 0.6s; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; }
+  .dual-progress { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .dual-card { background: rgba(255,255,255,0.15); padding: 14px; border-radius: 8px; }
+  .dual-label { font-size: 13px; opacity: 0.95; margin-bottom: 8px; font-weight: 600; }
+  .dual-hint { font-size: 11px; opacity: 0.7; font-weight: 400; display: block; margin-top: 2px; }
+  .dual-stat { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .dual-stat > span:first-child { font-size: 32px; font-weight: 700; }
+  .dual-sub { font-size: 12px; opacity: 0.8; }
+  .mini-bar { background: rgba(0,0,0,0.25); height: 8px; border-radius: 4px; overflow: hidden; }
+  .mini-bar-fill { height: 100%; transition: width 0.6s; }
+  .mini-bar-fill.core { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+  .mini-bar-fill.all { background: linear-gradient(90deg, #10b981, #34d399); }
+  @media (max-width: 600px) { .dual-progress { grid-template-columns: 1fr; } }
   .section-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin-top: 16px; font-size: 12px; }
   .section-stat { background: rgba(255,255,255,0.1); padding: 8px 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
   .section-stat .pct { font-weight: 700; }
@@ -74,6 +86,20 @@
     <div class="dash-card" style="background:rgba(255,255,255,0.25);"><div class="label">אחוז השלמה משוקלל</div><div class="value" id="dash-pct">—</div><div class="sub">✓=1 • ◐=½ • ✗=0</div></div>
   </div>
   <div class="big-progress"><div class="big-progress-fill" id="dash-bar" style="width:0%;">0%</div></div>
+
+  <div class="dual-progress">
+    <div class="dual-card">
+      <div class="dual-label">🎯 ליבה תפעולית בלבד <span class="dual-hint">(ליבה + פיננסים + הרשאות + תוספות)</span></div>
+      <div class="dual-stat"><span id="core-pct">—</span><span class="dual-sub" id="core-detail">—</span></div>
+      <div class="mini-bar"><div class="mini-bar-fill core" id="core-bar" style="width:0%;"></div></div>
+    </div>
+    <div class="dual-card">
+      <div class="dual-label">🌐 כל הפרויקט <span class="dual-hint">(כולל BI, HR, אינטגרציות מתקדמות)</span></div>
+      <div class="dual-stat"><span id="all-pct">—</span><span class="dual-sub" id="all-detail">—</span></div>
+      <div class="mini-bar"><div class="mini-bar-fill all" id="all-bar" style="width:0%;"></div></div>
+    </div>
+  </div>
+
   <div class="section-stats" id="section-stats"></div>
 </div>
 
@@ -394,6 +420,22 @@
     });
     const total = rows.length;
     const pct = total ? Math.round(score/total*100) : 0;
+    // Core-only computation: sections 1, 5, 8, 10
+    const CORE = new Set(['1','5','8','10']);
+    let coreY=0, coreP=0, coreN=0, coreScore=0, coreTotal=0;
+    Object.keys(bySection).forEach(s => {
+      if (!CORE.has(s)) return;
+      const x = bySection[s];
+      coreY += x.yes; coreP += x.partial; coreN += x.no;
+      coreTotal += x.total; coreScore += x.score;
+    });
+    const corePct = coreTotal ? Math.round(coreScore/coreTotal*100) : 0;
+    document.getElementById('core-pct').textContent = corePct + '%';
+    document.getElementById('core-detail').textContent = `${coreY}/${coreTotal} מלא • ${coreP} חלקי • ${coreN} חסר`;
+    document.getElementById('core-bar').style.width = corePct + '%';
+    document.getElementById('all-pct').textContent = pct + '%';
+    document.getElementById('all-detail').textContent = `${yes}/${total} מלא • ${partial} חלקי • ${no} חסר`;
+    document.getElementById('all-bar').style.width = pct + '%';
     document.getElementById('dash-total').textContent = total;
     document.getElementById('dash-yes').textContent = yes;
     document.getElementById('dash-partial').textContent = partial;
